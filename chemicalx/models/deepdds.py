@@ -136,19 +136,13 @@ class DeepDDS(Model):
             self.conv_left = GraphConvolutionalNetwork(
                 input_dim=in_channels, hidden_dims=[in_channels, in_channels * 2, in_channels * 4]
             )
-            self.conv_right = GraphConvolutionalNetwork(
-                input_dim=in_channels, hidden_dims=[in_channels, in_channels * 2, in_channels * 4]
-            )
+            self.conv_right = self.conv_left
             self.mlp_left = MLP(
                 input_dim=in_channels * 4,
                 hidden_dims=[in_channels * 2, context_output_size],
                 dropout=dropout,
             )
-            self.mlp_right = MLP(
-                input_dim=in_channels * 4,
-                hidden_dims=[in_channels * 2, context_output_size],
-                dropout=dropout,
-            )
+            self.mlp_right = self.mlp_left
         else:
             num_heads = gat_heads
             self.gat_left = GraphAttentionNetwork(
