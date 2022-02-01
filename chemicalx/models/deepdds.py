@@ -145,9 +145,8 @@ class DeepDDS(Model):
             )
             self.mlp_right = self.mlp_left
         else:
-            num_heads = gat_heads
             self.gat_left = GraphAttentionNetwork(
-                in_channels=in_channels, out_channels=context_output_size, heads=num_heads, dropout=dropout
+                in_channels=in_channels, out_channels=context_output_size, heads=gat_heads, dropout=dropout
             )
             self.gat_right = self.gat_left
 
