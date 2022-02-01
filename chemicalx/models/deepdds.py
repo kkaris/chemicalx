@@ -16,7 +16,11 @@ The embedding vector from both inputs are concatenated and fed into the
 fully connected layers for binary classification of the drug combination as
 synergistic or antagonistic.
 """
-from typing import Literal, Tuple
+from typing import Tuple
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 import torch
 from torch import FloatTensor, nn
