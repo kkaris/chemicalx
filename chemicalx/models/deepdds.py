@@ -117,6 +117,7 @@ class DeepDDS(Model):
         context_output_size: int,
         in_channels: int = TORCHDRUG_NODE_FEATURES,
         dropout: float = 0.2,  # Rate used in paper
+        gat_heads: int = 10,
         drug_feature_model: Literal["gat", "gcn"] = "gcn",  # gcn or gat
     ):
         """Instantiate the DeepDDS model.
@@ -149,55 +150,11 @@ class DeepDDS(Model):
                 dropout=dropout,
             )
         else:
-            # Paper source code (in DeepDDs/models/gat.py seems to use one
-            # GAT layer with 10 heads and then another GAT layer with 1 head
-            # that reads the output of the first GAT layer. This is topped off
-            # with a fully connected layer and then sent to concatenation.
-            # They also use the same GNN instances for both drugs.
-            # ToDo:
-            #  - Compare what GATConv from from torch_geometric.nn
-            #    does to what GraphAttentionNetwork from torchdrug.models does
-            #    and see if they are equivalent.
-            print(f"in_channels: {in_channels}, context_output_size: " f"{context_output_size}")
-            num_heads = 10
-            self.gat_left1 = GraphAttentionNetwork(
-                input_dim=in_channels * num_heads,
-                hidden_dims=[context_output_size * num_heads],
-                num_head=num_heads,
-                activation="elu",
-                readout="mean",
+            num_heads = gat_heads
+            self.gat_left = GraphAttentionNetwork(
+                in_channels=in_channels, out_channels=context_output_size, heads=num_heads, dropout=dropout
             )
-            self.gat_left2 = GraphAttentionNetwork(
-                input_dim=context_output_size * num_heads,
-                hidden_dims=[context_output_size],
-                num_head=1,
-                activation="elu",
-                readout="mean",
-            )
-            self.mlp_left = MLP(
-                input_dim=context_output_size,
-                hidden_dims=[context_output_size],
-                dropout=dropout,
-            )
-            self.gat_right1 = GraphAttentionNetwork(
-                input_dim=in_channels * num_heads,
-                hidden_dims=[context_output_size * num_heads],
-                num_head=num_heads,
-                activation="elu",
-                readout="mean",
-            )
-            self.gat_right2 = GraphAttentionNetwork(
-                input_dim=context_output_size * num_heads,
-                hidden_dims=[context_output_size],
-                num_head=1,
-                activation="elu",
-                readout="mean",
-            )
-            self.mlp_right = MLP(
-                input_dim=context_output_size,
-                hidden_dims=[context_output_size],
-                dropout=dropout,
-            )
+            self.gat_right = self.gat_left
 
         self.mlp_final = MLP(input_dim=context_output_size * 3, hidden_dims=[1024, 512, 128, 1], dropout=dropout)
         self.max_readout = MaxReadout()
@@ -269,13 +226,6 @@ class DeepDDS(Model):
             tuple(FloatTensor, FloatTensor): A column vector of predicted
             synergy scores
         """
-        features_left = self.gat_left1(molecules_left, molecules_left.data_dict["node_feature"])["node_feature"]
-        features_left = self.gat_left2(features_left)["node_feature"]
-        features_left = self.max_readout.forward(input=features_left, graph=molecules_left)
-        features_left = self.mlp_left(features_left)
-
-        features_right = self.gat_right1(molecules_right, molecules_right.data_dict["node_feature"])["node_feature"]
-        features_right = self.gat_right2(features_right)["node_feature"]
-        features_right = self.max_readout.forward(input=features_right, graph=molecules_right)
-        features_right = self.mlp_right(features_right)
+        features_left = self.gat_left(molecules_left, molecules_left.data_dict["node_feature"])["node_feature"]
+        features_right = self.gat_right(molecules_right, molecules_right.data_dict["node_feature"])["node_feature"]
         return features_left, features_right
