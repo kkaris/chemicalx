@@ -60,10 +60,7 @@ class GraphAttentionNetwork(nn.Module):
             in_channels: Number of input channels.
             out_channels: Number of output channels.
             heads: Number of attention heads.
-            concat: If True, concatenate the output of the attention heads.
             dropout: Dropout probability.
-            negative_slope: LeakyReLU negative slope.
-            residual: If True, add a residual connection.
         """
         super(GraphAttentionNetwork, self).__init__()
 
