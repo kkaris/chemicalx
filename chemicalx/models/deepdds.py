@@ -19,11 +19,12 @@ synergistic or antagonistic.
 from typing import Literal, Tuple
 
 import torch
-from torch import FloatTensor
-from torch.nn.functional import normalize, softmax
+from torch import FloatTensor, nn
+from torch.nn.functional import elu, normalize, relu, softmax
+from torch_geometric.nn import GATConv, global_max_pool
 from torchdrug.data import PackedGraph
 from torchdrug.layers import MLP, MaxReadout
-from torchdrug.models import GraphAttentionNetwork, GraphConvolutionalNetwork
+from torchdrug.models import GraphConvolutionalNetwork
 
 from chemicalx.constants import TORCHDRUG_NODE_FEATURES
 from chemicalx.data import DrugPairBatch
@@ -32,6 +33,71 @@ from chemicalx.models import Model
 __all__ = [
     "DeepDDS",
 ]
+
+
+class GraphAttentionNetwork(nn.Module):
+    """Graph Attention Network.
+
+    This implementation is based on the GATConv from torch_geometric and is
+    needed because the TorchDrug implementation does not support true max
+    readout
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        heads: int,
+        dropout: float = 0.2,
+    ):
+        """Initialize the GraphAttentionNetwork.
+
+        Args:
+            in_channels: Number of input channels.
+            out_channels: Number of output channels.
+            heads: Number of attention heads.
+            concat: If True, concatenate the output of the attention heads.
+            dropout: Dropout probability.
+            negative_slope: LeakyReLU negative slope.
+            residual: If True, add a residual connection.
+        """
+        super(GraphAttentionNetwork, self).__init__()
+
+        self.gat1 = GATConv(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            heads=heads,
+            dropout=dropout,
+        )
+        self.gat2 = GATConv(
+            in_channels=out_channels * 10,
+            out_channels=out_channels,
+            heads=1,
+            dropout=dropout,
+        )
+        self.fc = nn.Linear(out_channels, out_channels)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: FloatTensor, edge_index: torch.LongTensor) -> FloatTensor:
+        """Forward pass of the GraphAttentionNetwork.
+
+        Args:
+            x: Input tensor.
+            edge_index: Edge indices.
+
+        Returns:
+            Output tensor.
+        """
+        x, arr = self.gat1(x, edge_index)
+        x = elu(x)
+        x = self.dropout(x)
+        x, arr = self.gat2(x, edge_index)
+        x = elu(x)
+        x = self.dropout(x)
+        x = global_max_pool(x, arr)
+        x = self.fc(x)
+        x = relu(x)
+        return x
 
 
 class DeepDDS(Model):
